@@ -1,4 +1,4 @@
-# BDANet: Binary-Dimensional Aware Network for Cognitive Workload Detection
+# BDANet: Binary-dimensional Aware Network with multi-wise attention for Cognitive Workload Recognition
 
 ## Introduction
 
@@ -10,7 +10,7 @@ Recent innovations like EEG_Conformer [21] and LGNet [7] have demonstrated promi
 
 ## BDANet: Addressing the Challenge
 
-To address these challenges, we introduce BDANet, a novel binary-dimensional aware network tailored for Cognitive Workload Detection (CWD). This network acknowledges that variations in cognitive workload are influenced by the complexity of current tasks and the cumulative effects of previous tasks. And loacl-global features are considered.
+To address these challenges, we introduce BDANet, a novel binary-dimensional aware network tailored for Cognitive Workload recognition. This network acknowledges that variations in cognitive workload are influenced by the complexity of current tasks and the cumulative effects of previous tasks. And loacl-global features are considered.
 
 ### Core Components of BDANet:
 
