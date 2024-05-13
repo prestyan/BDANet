@@ -10,7 +10,7 @@ Recent innovations like EEG_Conformer [21] and LGNet [7] have demonstrated promi
 
 ## BDANet: Addressing the Challenge
 
-To address these challenges, we introduce BDANet, a novel binary-dimensional aware network tailored for Cognitive Workload Detection (CWD). This network acknowledges that variations in cognitive workload are influenced by the complexity of current tasks and the cumulative effects of previous tasks.
+To address these challenges, we introduce BDANet, a novel binary-dimensional aware network tailored for Cognitive Workload Detection (CWD). This network acknowledges that variations in cognitive workload are influenced by the complexity of current tasks and the cumulative effects of previous tasks. And loacl-global features are considered.
 
 ### Core Components of BDANet:
 
@@ -29,16 +29,24 @@ Below is the architecture diagram of BDANet, illustrating the integration of var
 
 ## Achievements
 
-This innovative approach enables precise identification of complex patterns associated with cognitive loads, thereby enhancing both the accuracy and robustness of the model in real-world applications. BDANet offers a potent tool for the real-time monitoring and evaluation of cognitive workloads.
+This innovative approach enables precise identification of complex patterns associated with cognitive loads, thereby enhancing both the accuracy and robustness of the model in real-world applications. BDANet offers a potent tool for the real-time monitoring and evaluation of cognitive workloads. It achieves the state-of-art performance.(91%+)
+
+## Prerequisites
+
+Before you begin, ensure you have met the following requirements:
+- Python 3.8 or newer
+- torch 2.1
+- This project depends on several key libraries, including PyTorch, NumPy, and Matplotlib. You need to install them by pip or conda.
 
 ## Quick Start
 
 To get started with BDANet, follow these steps:
 
 ```bash
-git clone https://github.com/yourusername/your-repository-name.git
+git clone https://github.com/prestyan/BDANet.git
 cd your-repository-name
-python setup.py install
+python main.py // It is BDANet
+python main_LG // It is LGNet, according to the author of LGNet, The replicated code may not be publicly available.
 ```
 ## License
 
