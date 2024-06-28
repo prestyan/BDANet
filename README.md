@@ -25,7 +25,7 @@ To address these challenges, we introduce BDANet, a novel binary-dimensional awa
 
 Below is the architecture diagram of BDANet, illustrating the integration of various components:
 
-![BDANet Model Architecture](structure_mcs.pdf)
+![BDANet Model Architecture](模型结构-mcs.pdf)
 
 ## Achievements
 
