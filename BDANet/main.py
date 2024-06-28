@@ -12,9 +12,11 @@ from sklearn.model_selection import train_test_split
 import numpy as np
 from dataset import EegDataset
 from network import MBiLstmDcnn
-from sklearn.metrics import f1_score, confusion_matrix
+from sklearn.metrics import f1_score, confusion_matrix, roc_curve, auc
 import matplotlib.pyplot as plt
 import time
+from sklearn.preprocessing import label_binarize
+from loss import DissimilarityLoss
 
 
 # 训练模型
@@ -53,16 +55,18 @@ def train_and_val(train_loader, test_loader, nSub, batch_size, X_train, Y_train)
     # 创建模型实例
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = MBiLstmDcnn(input_size, hidden_size, num_layers, num_classes, num_heads, attention_dim, feedforward_dim,
-                        0.5, 0.5, dropout_rate).to(device)
+                        0.3, 0.3, dropout_rate).to(device)
     # 定义损失函数和优化器
     criterion = nn.CrossEntropyLoss()  # 使用交叉熵损失函数
+    ds_loss = DissimilarityLoss().cuda()
     optimizer = optim.Adam(model.parameters(), lr=learning_rate, betas=(0.5, 0.999))  # 使用adam优化器
-    scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.95)
+    # scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=1000, gamma=0.5)
     bestAcc = 0
     bestf1 = 0
     Y_true = 0
     Y_pred = 0
     model_dict = 0
+    Ypred_probs = 0
     print("Subjetc_" + str(nSub))
     for epoch in range(num_epochs):
         # 遍历数据集
@@ -85,7 +89,8 @@ def train_and_val(train_loader, test_loader, nSub, batch_size, X_train, Y_train)
             outputs, reg_loss = model(inputs)
 
             # 计算损失
-            loss = criterion(outputs, labels)
+            x1, x2 = model.get_x1_and_x2()
+            loss = criterion(outputs, labels) + 0.1 * ds_loss(x1, x2) # you can remove it in different subjects
             # loss = loss + reg_loss
             # 反向传播和优化
             loss.backward()
@@ -121,9 +126,13 @@ def train_and_val(train_loader, test_loader, nSub, batch_size, X_train, Y_train)
                     predy = predicted
                     truey = labels
                     first = False
+                    pred_probs = outputs
                 else:
                     predy = torch.cat((predy, predicted))
                     truey = torch.cat((truey, labels))
+                    pred_probs = torch.cat((pred_probs, outputs))
+            end_time = time.time()
+            print('Test per epoch(90): %.2f s' % (end_time - start_time))
             # 计算并打印准确率
             accuracy = 100 * correct / total
             f1 = 100 * f1_score(truey.cpu(), predy.cpu(), average='macro')
@@ -133,6 +142,7 @@ def train_and_val(train_loader, test_loader, nSub, batch_size, X_train, Y_train)
             Y_true = truey
             Y_pred = predy
             model_dict = model.state_dict()
+            Ypred_probs = pred_probs
         end_time = time.time()
         # print('A test/single subject time : ', str(end_time - start_time), "s / ", str((end_time - start_time)/90))
         print(f'Epoch {epoch + 1}, Train Loss {total_loss / len(train_loader):.6f}, ',
@@ -143,6 +153,9 @@ def train_and_val(train_loader, test_loader, nSub, batch_size, X_train, Y_train)
     torch.save(model_dict, './results/ours/model/lstmdcnn_' + str(nSub) + '.pth')
     path = 'D:/研究生/研一下/lstmcnn/code/results/ours/cm/Subject' + str(nSub) + '.png'
     conf_matrix(Y_pred.cpu(), Y_true.cpu(), path, nSub)
+    np.save('./probs/1.npy', Ypred_probs.cpu().detach().numpy())
+    np.save('./probs/1_true.npy', Y_true.cpu().detach().numpy())
+    plot_multiclass_roc_pred(Y_true.cpu(), Ypred_probs.cpu(), 3, './probs/roc/1.png')
     return bestAcc, bestf1
 
 
@@ -169,6 +182,56 @@ def conf_matrix(pred_labels, true_labels, path, nsub):
     plt.tight_layout()
     plt.savefig(path, dpi=300)
     plt.close()
+
+
+def plot_multiclass_roc_pred(truey, pred_probs, n_classes, path):
+    classes = ['Underload', 'Normal', 'Overload']
+    truey_bin = label_binarize(truey, classes=range(n_classes))
+
+    fpr = dict()
+    tpr = dict()
+    roc_auc = dict()
+
+    for i in range(n_classes):
+        fpr[i], tpr[i], _ = roc_curve(truey_bin[:, i], pred_probs[:, i])
+        roc_auc[i] = auc(fpr[i], tpr[i])
+        # 使用插值函数平滑曲线
+        fpr[i], tpr[i] = smooth_curve(fpr[i], tpr[i])
+
+    # Compute micro-average ROC curve and ROC area
+    fpr["micro"], tpr["micro"], _ = roc_curve(truey_bin.ravel(), pred_probs.ravel())
+    roc_auc["micro"] = auc(fpr["micro"], tpr["micro"])
+    fpr["micro"], tpr["micro"] = smooth_curve(fpr["micro"], tpr["micro"])
+
+    plt.figure()
+    plt.plot(fpr["micro"], tpr["micro"],
+             label='micro-average ROC curve (area = {0:0.2f})'
+                   ''.format(roc_auc["micro"]))
+
+    for i in range(n_classes):
+        plt.plot(fpr[i], tpr[i], label='ROC curve of {0} (area = {1:0.2f})'
+                                       ''.format(classes[i], roc_auc[i]))
+
+    plt.plot([0, 1], [0, 1], 'k--')
+    plt.xlim([0.0, 1.0])
+    plt.ylim([0.0, 1.05])
+    plt.xticks(fontsize=16)
+    plt.yticks(fontsize=16)
+    plt.xlabel('False Positive Rate', fontsize=16)
+    plt.ylabel('True Positive Rate', fontsize=16)
+    plt.title('Receiver Operating Characteristic of Subject ', fontsize=16)
+    plt.legend(loc="lower right", fontsize=12)
+    plt.savefig(path, dpi=300)
+    plt.close()
+
+
+from scipy.interpolate import interp1d
+def smooth_curve(x, y, num_points=1000):
+    """使用插值函数平滑曲线"""
+    interp = interp1d(x, y, kind='linear')
+    x_new = np.linspace(x.min(), x.max(), num_points)
+    y_new = interp(x_new)
+    return x_new, y_new
 
 
 def get_channel_attention(feature_map):
@@ -204,7 +267,7 @@ if __name__ == "__main__":
     for i in [1]:
         # 先生成一个随机数作为种子, 然后再用这个种子生成多个随机数
         # seed_n = np.random.randint(2023)
-        seed_n = 1080
+        seed_n = 1080 # change it to eval
         print('seed is ' + str(seed_n))
         np.random.seed(seed_n)
         torch.manual_seed(seed_n)  # cpu

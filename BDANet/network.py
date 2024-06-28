@@ -40,7 +40,7 @@ class MBiLstmDcnn(nn.Module):
                              num_layers=num_layers,
                              batch_first=True, bidirectional=True)
         self.multihead_attn = nn.MultiheadAttention(hidden_size, 8, att_drop, batch_first=True)
-        self.LayerNorm = nn.LayerNorm(64)
+        self.LayerNorm = nn.LayerNorm(hidden_size)
         # self.lstm_attn = MDAOutput(int(hidden_size / 2), int(hidden_size / 2), int(hidden_size / 2))
 
         # Conv Pool Block-1
@@ -67,7 +67,7 @@ class MBiLstmDcnn(nn.Module):
         self.bn4 = nn.BatchNorm2d(200)
         self.pooling4 = nn.MaxPool2d((1, 3), stride=(1, 3))
 
-        self.fc1 = nn.Linear(200 + int(self.hidden_size / 2 * 4), 128)  # 使用全连接层进行分类
+        self.fc1 = nn.Linear(200 + int(self.hidden_size / 2 * 4), 128)  # 使用全连接层进行分类 200 + int(self.hidden_size / 2 * 4)
         self.fc2 = nn.Linear(128, 64)
         self.fc3 = nn.Linear(64, num_classes)
         self.relu = nn.ReLU()  # Relu
@@ -95,7 +95,7 @@ class MBiLstmDcnn(nn.Module):
             x1 = self.relu(x1)  # remove drop
             x1 = x1.contiguous().view(-1, 125, 2, self.hidden_size)
             x1 = torch.mean(x1, dim=2)
-            x1 = self.LayerNorm(x1)
+            # x1 = self.LayerNorm(x1)
             x1, w = self.multihead_attn(x1, x1, x1)
             x1, (ht2, ct2) = self.lstm2(x1)
             x1 = self.lstmDrop(self.relu(x1))
@@ -131,11 +131,24 @@ class MBiLstmDcnn(nn.Module):
         x2 = x2.view(x2.size(0), -1)
 
         x_all = torch.cat((x1_out, x2), dim=1)
+        self.x1_out = x1_out
+        self.x2 = x2
+        self.features = x_all
 
         x_out = self.fcd(self.relu(self.fc1(x_all)))
+        self.features2 = x_out
         x_out = self.fcd2(self.relu(self.fc2(x_out)))
         x_out = self.fc3(x_out)
         return F.softmax(x_out, dim=1), reg_loss
+
+    def getF(self, index=0):
+        if index == 0:
+            return self.features
+        print('f->2')
+        return self.features2
+
+    def get_x1_and_x2(self):
+        return self.x1_out, self.x2
 
 
 class MBiLstmDcnn2(nn.Module):
@@ -203,7 +216,8 @@ class MBiLstmDcnn2(nn.Module):
         self.channel_attention = ChannelWiseAttention(61)
 
     def forward(self, x):
-        x = (x.unsqueeze(2)).permute(0, 3, 2, 1)
+        # x = (x.unsqueeze(2)).permute(0, 3, 2, 1)
+        x = x.permute(0, 2, 1, 3)
         x, reg_loss = self.channel_attention(x)
         x = (x.squeeze(2)).permute(0, 2, 1)
         x_slice = torch.split(x, 125, dim=1)  # 按照第二个维度切分张量
@@ -250,8 +264,12 @@ class MBiLstmDcnn2(nn.Module):
         x2 = x2.view(x2.size(0), -1)
 
         x_all = torch.cat((x1_out, x2), dim=1)
+        self.features = x_all
 
         x_out = self.fcd(self.relu(self.fc1(x_all)))
         x_out = self.fcd2(self.relu(self.fc2(x_out)))
         x_out = self.fc3(x_out)
         return F.softmax(x_out, dim=1), reg_loss
+
+    def getF(self):
+        return self.features
